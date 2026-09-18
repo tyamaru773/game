@@ -10,13 +10,13 @@
     font-family: sans-serif;
     min-height: 100vh;
     box-sizing: border-box;
-    padding: 16px 12px 120px;
+    padding: 16px 12px 180px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
   }
-  button { font-size: 18px; min-height: 40px; }
+  button { font-size: 16px; min-height: 40px; }
   #panel { text-align: center; max-width: 320px; }
   #pos { color: #888; font-size: 13px; margin: 0 0 8px; }
   #txt { font-size: 16px; line-height: 1.6; margin: 0 0 8px; white-space: pre-wrap; }
@@ -27,9 +27,13 @@
     right: 0;
     bottom: 16px;
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
-    gap: 16px;
+    gap: 10px;
+    padding: 0 12px;
+    box-sizing: border-box;
   }
+  #controls button { padding: 0 10px; }
   #ver {
     position: fixed;
     bottom: 4px;
@@ -48,37 +52,98 @@
 <div id="controls">
   <button id="next">つぎへ</button>
   <button id="toggle">a版</button>
+  <button id="loadBtn">b版データを読み込む</button>
+  <button id="clearBtn">読み込んだデータを消す</button>
 </div>
-<span id="ver">v0.1</span>
+<input type="file" id="fileInput" accept="application/json,.json" style="display:none">
+<span id="ver">v0.2</span>
 <script src="data/text-a.js"></script>
-<script src="data/text-b.js"></script>
 <script>
 const MODE_KEY = 'switchTestMode';
-const KEYS = Object.keys(TEXT_A).map(Number).sort((a, b) => a - b);
-const bAvailable = typeof TEXT_B !== 'undefined';
+const LOADED_KEY = 'switchTestLoadedB';
+const KEYS_A = Object.keys(TEXT_A).map(Number).sort((a, b) => a - b);
 let idx = 0;
-function effectiveMode() {
-  const saved = localStorage.getItem(MODE_KEY);
-  return saved === 'b' && bAvailable ? 'b' : 'a';
+
+function getLoadedB() {
+  const raw = localStorage.getItem(LOADED_KEY);
+  if (!raw) return null;
+  try {
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : null;
+  } catch (e) {
+    return null;
+  }
 }
-function currentData() {
-  return effectiveMode() === 'b' ? TEXT_B : TEXT_A;
+function bKeys() {
+  const data = getLoadedB();
+  if (!data) return [];
+  return Object.keys(data).map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
+}
+function effectiveMode() {
+  return localStorage.getItem(MODE_KEY) === 'b' ? 'b' : 'a';
+}
+function currentKeys() {
+  return effectiveMode() === 'a' ? KEYS_A : bKeys();
 }
 function render() {
   const mode = effectiveMode();
-  const key = KEYS[idx];
-  document.getElementById('pos').textContent = (idx + 1) + ' / ' + KEYS.length;
-  document.getElementById('txt').textContent = currentData()[key] || '';
   document.getElementById('toggle').textContent = mode === 'b' ? 'b版' : 'a版';
-  document.getElementById('note').textContent = bAvailable ? '' : 'b版データなし（a版で表示中）';
+  document.getElementById('clearBtn').disabled = !getLoadedB();
+  if (mode === 'a') {
+    const key = KEYS_A[idx];
+    document.getElementById('pos').textContent = (idx + 1) + ' / ' + KEYS_A.length;
+    document.getElementById('txt').textContent = TEXT_A[key] || '';
+    document.getElementById('note').textContent = '';
+    return;
+  }
+  const data = getLoadedB();
+  if (!data) {
+    document.getElementById('pos').textContent = '-';
+    document.getElementById('txt').textContent = 'b版データが未読み込み';
+    document.getElementById('note').textContent = '';
+    return;
+  }
+  const keys = bKeys();
+  const key = keys[idx];
+  document.getElementById('pos').textContent = (idx + 1) + ' / ' + keys.length;
+  document.getElementById('txt').textContent = data[key] || '';
+  document.getElementById('note').textContent = '';
 }
 document.getElementById('next').onclick = () => {
-  idx = (idx + 1) % KEYS.length;
+  const keys = currentKeys();
+  if (keys.length === 0) return;
+  idx = (idx + 1) % keys.length;
   render();
 };
 document.getElementById('toggle').onclick = () => {
-  const next = effectiveMode() === 'a' ? 'b' : 'a';
-  localStorage.setItem(MODE_KEY, next);
+  localStorage.setItem(MODE_KEY, effectiveMode() === 'a' ? 'b' : 'a');
+  idx = 0;
+  render();
+};
+document.getElementById('loadBtn').onclick = () => {
+  document.getElementById('fileInput').click();
+};
+document.getElementById('fileInput').onchange = (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const obj = JSON.parse(reader.result);
+      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('invalid');
+      localStorage.setItem(LOADED_KEY, JSON.stringify(obj));
+      idx = 0;
+      render();
+    } catch (err) {
+      alert('読み込めませんでした。JSON形式のファイルを選んでください。');
+    }
+  };
+  reader.readAsText(file);
+};
+document.getElementById('clearBtn').onclick = () => {
+  localStorage.removeItem(LOADED_KEY);
+  idx = 0;
   render();
 };
 render();
