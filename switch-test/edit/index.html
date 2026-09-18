@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>b版データ編集</title>
+<style>
+  html, body { margin: 0; }
+  body {
+    font-family: sans-serif;
+    box-sizing: border-box;
+    padding: 16px 12px 100px;
+    max-width: 380px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 16px; margin: 0 0 12px; }
+  #back { display: inline-block; font-size: 13px; color: #555; margin-bottom: 12px; text-decoration: none; }
+  .field { margin-bottom: 16px; }
+  .num { font-size: 13px; color: #888; margin-bottom: 4px; }
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 15px;
+    font-family: inherit;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    resize: vertical;
+  }
+  textarea::placeholder { color: #bbb; }
+  .count { text-align: right; font-size: 12px; color: #888; margin-top: 2px; }
+  #controls {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    padding: 0 12px;
+    box-sizing: border-box;
+  }
+  button { font-size: 16px; min-height: 40px; padding: 0 10px; }
+  #ver {
+    position: fixed;
+    bottom: 4px;
+    left: 6px;
+    font-size: 11px;
+    color: #888;
+  }
+</style>
+</head>
+<body>
+<a id="back" href="../">← テストページに戻る</a>
+<h1>b版データ編集</h1>
+<div id="fields"></div>
+<div id="controls">
+  <button id="loadBtn">JSONを読み込む</button>
+  <button id="saveBtn">JSONを保存</button>
+</div>
+<input type="file" id="fileInput" accept="application/json,.json" style="display:none">
+<span id="ver">v0.3</span>
+<script src="../data/text-a.js"></script>
+<script>
+const DRAFT_KEY = 'switchTestEditDraft';
+const KEYS = Object.keys(TEXT_A).map(Number).sort((a, b) => a - b);
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    return (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {};
+  } catch (e) {
+    return {};
+  }
+}
+function saveDraft() {
+  const obj = {};
+  KEYS.forEach(k => { obj[k] = document.getElementById('ta-' + k).value; });
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(obj));
+}
+function updateCount(k) {
+  const v = document.getElementById('ta-' + k).value;
+  document.getElementById('cnt-' + k).textContent = v.length + '文字';
+}
+
+const draft = loadDraft();
+const fields = document.getElementById('fields');
+KEYS.forEach(k => {
+  const field = document.createElement('div');
+  field.className = 'field';
+
+  const num = document.createElement('div');
+  num.className = 'num';
+  num.textContent = '#' + k;
+
+  const ta = document.createElement('textarea');
+  ta.id = 'ta-' + k;
+  ta.rows = 3;
+  ta.placeholder = TEXT_A[k] || '';
+  ta.value = draft[k] || '';
+  ta.oninput = () => { updateCount(k); saveDraft(); };
+
+  const cnt = document.createElement('div');
+  cnt.className = 'count';
+  cnt.id = 'cnt-' + k;
+
+  field.appendChild(num);
+  field.appendChild(ta);
+  field.appendChild(cnt);
+  fields.appendChild(field);
+  updateCount(k);
+});
+
+document.getElementById('loadBtn').onclick = () => {
+  document.getElementById('fileInput').click();
+};
+document.getElementById('fileInput').onchange = (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const obj = JSON.parse(reader.result);
+      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('invalid');
+      KEYS.forEach(k => {
+        const has = Object.prototype.hasOwnProperty.call(obj, k) ||
+          Object.prototype.hasOwnProperty.call(obj, String(k));
+        if (!has) return;
+        const val = obj[k] !== undefined ? obj[k] : obj[String(k)];
+        document.getElementById('ta-' + k).value = (typeof val === 'string') ? val : String(val);
+        updateCount(k);
+      });
+      saveDraft();
+    } catch (err) {
+      alert('読み込めませんでした。JSON形式のファイルを選んでください。');
+    }
+  };
+  reader.readAsText(file);
+};
+document.getElementById('saveBtn').onclick = () => {
+  const obj = {};
+  KEYS.forEach(k => { obj[k] = document.getElementById('ta-' + k).value; });
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'text-b.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+</script>
+</body>
+</html>
