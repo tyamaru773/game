@@ -10,24 +10,29 @@
     font-family: sans-serif;
     min-height: 100vh;
     box-sizing: border-box;
-    padding: 16px 12px 260px;
+    padding: 16px 12px 200px;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
   }
   button { font-size: 18px; min-height: 40px; }
   #panel { text-align: center; }
   #controls {
     position: fixed;
-    left: 50%;
-    bottom: 16px;
-    transform: translateX(-50%);
+    left: 0;
+    right: 0;
+    bottom: 12px;
+    box-sizing: border-box;
+    padding: 0 16px;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 16px;
   }
-  #actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  #controls.mode-one { justify-content: center; }
+  #controls.mode-two { justify-content: space-between; }
+  #pre { display: flex; align-items: center; }
+  #stack { display: flex; flex-direction: column; gap: 6px; }
   #dpad {
     display: grid;
     grid-template-columns: repeat(3, 52px);
@@ -35,10 +40,23 @@
   }
   #ver {
     position: fixed;
-    right: 6px;
     bottom: 4px;
+    left: 6px;
     font-size: 11px;
     color: #888;
+  }
+  #modebtn {
+    position: fixed;
+    top: 4px;
+    right: 6px;
+    font-size: 11px;
+    min-height: auto;
+    line-height: 1.2;
+    padding: 3px 8px;
+    border: 1px solid #999;
+    border-radius: 4px;
+    background: #fff;
+    color: #555;
   }
 </style>
 </head>
@@ -49,19 +67,20 @@
   <p id="msg" style="margin:0 0 12px;">-</p>
 </div>
 <div id="controls">
-  <div id="actions">
-    <button id="down" disabled>降りる</button>
-    <button id="heal" disabled>★で回復</button>
-    <button id="fuel" disabled>★でたいまつ</button>
-    <button id="rs" style="display:none;">もう一度</button>
-  </div>
+  <div id="pre"></div>
   <div id="dpad">
     <span></span><button id="u">↑</button><span></span>
     <button id="l">←</button><span></span><button id="r">→</button>
     <span></span><button id="d">↓</button><span></span>
   </div>
+  <div id="stack"></div>
 </div>
-<span id="ver">v0.3</span>
+<button id="down" disabled>降りる</button>
+<button id="heal" disabled>★で回復</button>
+<button id="fuel" disabled>★でたいまつ</button>
+<button id="rs" style="display:none;">もう一度</button>
+<span id="ver">v0.4</span>
+<button id="modebtn">配置切替</button>
 <script>
 const W = 15, H = 11, MAXHP = 10, MAXT = 100;
 let map, seen, items, enemies, px, py, stx, sty;
@@ -275,6 +294,35 @@ $('rs').onclick = () => {
   $('msg').textContent = '-';
   $('rs').style.display = 'none';
   draw();
+};
+const MODE_KEY = 'rogueControlMode';
+function applyMode(mode) {
+  const pre = $('pre'), stack = $('stack'), controls = $('controls');
+  const downBtn = $('down'), healBtn = $('heal'), fuelBtn = $('fuel'), rsBtn = $('rs');
+  if (mode === 'two') {
+    controls.classList.remove('mode-one');
+    controls.classList.add('mode-two');
+    pre.style.display = 'none';
+    stack.appendChild(downBtn);
+    stack.appendChild(healBtn);
+    stack.appendChild(fuelBtn);
+    stack.appendChild(rsBtn);
+  } else {
+    controls.classList.remove('mode-two');
+    controls.classList.add('mode-one');
+    pre.style.display = 'flex';
+    pre.appendChild(downBtn);
+    stack.appendChild(healBtn);
+    stack.appendChild(fuelBtn);
+    stack.appendChild(rsBtn);
+  }
+}
+let mode = localStorage.getItem(MODE_KEY) === 'two' ? 'two' : 'one';
+applyMode(mode);
+$('modebtn').onclick = () => {
+  mode = mode === 'one' ? 'two' : 'one';
+  localStorage.setItem(MODE_KEY, mode);
+  applyMode(mode);
 };
 gen();
 draw();
