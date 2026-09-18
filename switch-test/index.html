@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>素材切り替えテスト</title>
+<style>
+  html, body { margin: 0; }
+  body {
+    font-family: sans-serif;
+    min-height: 100vh;
+    box-sizing: border-box;
+    padding: 16px 12px 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  button { font-size: 18px; min-height: 40px; }
+  #panel { text-align: center; max-width: 320px; }
+  #pos { color: #888; font-size: 13px; margin: 0 0 8px; }
+  #txt { font-size: 16px; line-height: 1.6; margin: 0 0 8px; white-space: pre-wrap; }
+  #note { font-size: 12px; color: #888; min-height: 1.4em; margin: 0; }
+  #controls {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 16px;
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+  }
+  #ver {
+    position: fixed;
+    bottom: 4px;
+    left: 6px;
+    font-size: 11px;
+    color: #888;
+  }
+</style>
+</head>
+<body>
+<div id="panel">
+  <p id="pos">-</p>
+  <p id="txt">-</p>
+  <p id="note"></p>
+</div>
+<div id="controls">
+  <button id="next">つぎへ</button>
+  <button id="toggle">a版</button>
+</div>
+<span id="ver">v0.1</span>
+<script src="data/text-a.js"></script>
+<script src="data/text-b.js"></script>
+<script>
+const MODE_KEY = 'switchTestMode';
+const KEYS = Object.keys(TEXT_A).map(Number).sort((a, b) => a - b);
+const bAvailable = typeof TEXT_B !== 'undefined';
+let idx = 0;
+function effectiveMode() {
+  const saved = localStorage.getItem(MODE_KEY);
+  return saved === 'b' && bAvailable ? 'b' : 'a';
+}
+function currentData() {
+  return effectiveMode() === 'b' ? TEXT_B : TEXT_A;
+}
+function render() {
+  const mode = effectiveMode();
+  const key = KEYS[idx];
+  document.getElementById('pos').textContent = (idx + 1) + ' / ' + KEYS.length;
+  document.getElementById('txt').textContent = currentData()[key] || '';
+  document.getElementById('toggle').textContent = mode === 'b' ? 'b版' : 'a版';
+  document.getElementById('note').textContent = bAvailable ? '' : 'b版データなし（a版で表示中）';
+}
+document.getElementById('next').onclick = () => {
+  idx = (idx + 1) % KEYS.length;
+  render();
+};
+document.getElementById('toggle').onclick = () => {
+  const next = effectiveMode() === 'a' ? 'b' : 'a';
+  localStorage.setItem(MODE_KEY, next);
+  render();
+};
+render();
+</script>
+</body>
+</html>
