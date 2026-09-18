@@ -10,7 +10,7 @@
     font-family: sans-serif;
     min-height: 100vh;
     box-sizing: border-box;
-    padding: 16px 12px 180px;
+    padding: 16px 12px 220px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -19,6 +19,7 @@
   button { font-size: 16px; min-height: 40px; }
   #panel { text-align: center; max-width: 320px; }
   #pos { color: #888; font-size: 13px; margin: 0 0 8px; }
+  #img { display: none; max-width: 100%; height: auto; margin: 0 auto 8px; border-radius: 4px; }
   #txt { font-size: 16px; line-height: 1.6; margin: 0 0 8px; white-space: pre-wrap; }
   #note { font-size: 12px; color: #888; min-height: 1.4em; margin: 0; }
   #controls {
@@ -55,6 +56,7 @@
 <a id="editlink" href="edit/">編集ページへ →</a>
 <div id="panel">
   <p id="pos">-</p>
+  <img id="img" alt="">
   <p id="txt">-</p>
   <p id="note"></p>
 </div>
@@ -62,15 +64,19 @@
   <button id="next">つぎへ</button>
   <button id="toggle">a版</button>
   <button id="loadBtn">b版データを読み込む</button>
+  <button id="imgLoadBtn">b版画像を読み込む</button>
   <button id="clearBtn">読み込んだデータを消す</button>
 </div>
 <input type="file" id="fileInput" accept="application/json,.json" style="display:none">
-<span id="ver">v0.5</span>
+<input type="file" id="imgInput" accept="image/*" multiple style="display:none">
+<span id="ver">v0.6</span>
 <script src="data/text-a.js"></script>
 <script>
 const MODE_KEY = 'switchTestMode';
 const LOADED_KEY = 'switchTestLoadedB';
+const IMG_KEY = 'switchTestLoadedBImages';
 const KEYS_A = Object.keys(TEXT_A).map(Number).sort((a, b) => a - b);
+const RATIOS = [[4, 3], [16, 9], [1, 1], [3, 4], [9, 16]];
 let idx = 0;
 
 function getLoadedB() {
@@ -81,6 +87,16 @@ function getLoadedB() {
     return (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : null;
   } catch (e) {
     return null;
+  }
+}
+function getLoadedBImages() {
+  const raw = localStorage.getItem(IMG_KEY);
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {};
+  } catch (e) {
+    return {};
   }
 }
 function bKeys() {
@@ -94,15 +110,53 @@ function effectiveMode() {
 function currentKeys() {
   return effectiveMode() === 'a' ? KEYS_A : bKeys();
 }
+function imgId(n) {
+  return 's' + String(n).padStart(3, '0');
+}
+function placeholderSrc(id, i) {
+  const r = RATIOS[i % RATIOS.length];
+  const w = 240, h = Math.round(240 * r[1] / r[0]);
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">'
+    + '<rect width="100%" height="100%" fill="#ccc"/>'
+    + '<text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="16" font-family="sans-serif" fill="#555">'
+    + id + ' (' + r[0] + ':' + r[1] + ')</text></svg>';
+  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+}
+function updateImage(mode, key) {
+  const imgEl = document.getElementById('img');
+  if (key === undefined) {
+    imgEl.style.display = 'none';
+    imgEl.removeAttribute('src');
+    return;
+  }
+  const id = imgId(key);
+  if (mode === 'a') {
+    imgEl.onerror = () => { imgEl.onerror = null; imgEl.src = placeholderSrc(id, idx); };
+    imgEl.src = 'img/a/' + id + '.png';
+    imgEl.style.display = 'block';
+    return;
+  }
+  const images = getLoadedBImages();
+  if (images[id]) {
+    imgEl.onerror = null;
+    imgEl.src = images[id];
+    imgEl.style.display = 'block';
+  } else {
+    imgEl.removeAttribute('src');
+    imgEl.style.display = 'none';
+  }
+}
 function render() {
   const mode = effectiveMode();
   document.getElementById('toggle').textContent = mode === 'b' ? 'b版' : 'a版';
-  document.getElementById('clearBtn').disabled = !getLoadedB();
+  const hasLoaded = !!getLoadedB() || Object.keys(getLoadedBImages()).length > 0;
+  document.getElementById('clearBtn').disabled = !hasLoaded;
   if (mode === 'a') {
     const key = KEYS_A[idx];
     document.getElementById('pos').textContent = (idx + 1) + ' / ' + KEYS_A.length;
     document.getElementById('txt').textContent = TEXT_A[key] || '';
     document.getElementById('note').textContent = '';
+    updateImage('a', key);
     return;
   }
   const data = getLoadedB();
@@ -110,6 +164,7 @@ function render() {
     document.getElementById('pos').textContent = '-';
     document.getElementById('txt').textContent = 'b版データが未読み込み';
     document.getElementById('note').textContent = '';
+    updateImage('b', undefined);
     return;
   }
   const keys = bKeys();
@@ -117,6 +172,7 @@ function render() {
   document.getElementById('pos').textContent = (idx + 1) + ' / ' + keys.length;
   document.getElementById('txt').textContent = data[key] || '';
   document.getElementById('note').textContent = '';
+  updateImage('b', key);
 }
 document.getElementById('next').onclick = () => {
   const keys = currentKeys();
@@ -150,8 +206,32 @@ document.getElementById('fileInput').onchange = (e) => {
   };
   reader.readAsText(file);
 };
+document.getElementById('imgLoadBtn').onclick = () => {
+  document.getElementById('imgInput').click();
+};
+document.getElementById('imgInput').onchange = (e) => {
+  const files = Array.from(e.target.files);
+  e.target.value = '';
+  if (files.length === 0) return;
+  const images = getLoadedBImages();
+  let remaining = files.length;
+  files.forEach(file => {
+    const id = file.name.replace(/\.[^/.]+$/, '');
+    const reader = new FileReader();
+    reader.onload = () => {
+      images[id] = reader.result;
+      remaining--;
+      if (remaining === 0) {
+        localStorage.setItem(IMG_KEY, JSON.stringify(images));
+        render();
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+};
 document.getElementById('clearBtn').onclick = () => {
   localStorage.removeItem(LOADED_KEY);
+  localStorage.removeItem(IMG_KEY);
   idx = 0;
   render();
 };
